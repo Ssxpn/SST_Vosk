@@ -12,8 +12,8 @@ format = pyaudio.paInt16
 channels = 1
 SILENCE_TIMEOUT = 2  # secondes
 
-def initialize_speech_recognition():
-    """Initialise le modèle Vosk et le micro sans lancer l'écoute."""
+# === Initialisation du modèle Vosk (à faire une seule fois) ===
+def load_vosk_model():
     model_path = os.path.join(os.path.dirname(__file__), "models", "vosk-model-small-fr-pguyot-0.3")
     
     if not os.path.exists(model_path):
@@ -21,10 +21,22 @@ def initialize_speech_recognition():
         sys.exit(1)
 
     print("✅ Modèle chargé.")
+    return Model(model_path)
 
-    model = Model(model_path)
+# === Vide le buffer audio ===
+def clear_stream_buffer(stream, duration_ms=300):
+    discard_frames = int((sample_rate / 1000) * duration_ms)
+    try:
+        stream.read(discard_frames, exception_on_overflow=False)
+    except:
+        pass
+
+# === Lance une session STT ===
+def run_speech_recognition(model):
+    """Démarre une session unique de reconnaissance vocale, puis ferme le micro."""
     recognizer = KaldiRecognizer(model, sample_rate)
 
+    # 🔌 Ouvre le micro dynamiquement
     p = pyaudio.PyAudio()
     stream = p.open(
         format=format,
@@ -34,20 +46,10 @@ def initialize_speech_recognition():
         frames_per_buffer=chunk_size
     )
 
-    return recognizer, stream, p
-
-def clear_stream_buffer(stream, duration_ms=300):
-    """Vide le buffer du micro en lisant et jetant les données."""
-    frames_to_discard = int((sample_rate / 1000) * duration_ms)
-    stream.read(frames_to_discard, exception_on_overflow=False)
-
-def run_speech_recognition(recognizer, stream):
-    """Lance la reconnaissance vocale jusqu'à détection de silence."""
-    print("🎙️ Parle maintenant... (le programme s’arrêtera après silence)")
+    stream.start_stream()
     clear_stream_buffer(stream)
 
-    stream.start_stream()
-
+    print("🎙️ Parle maintenant... (fin après silence)")
     last_voice_time = time.time()
 
     try:
@@ -58,7 +60,7 @@ def run_speech_recognition(recognizer, stream):
                 result_json = json.loads(recognizer.Result())
                 text = result_json.get('text', '')
                 if text.strip():
-                    print("\r" + text, end='\n')
+                    print("\r✅", text)
                     last_voice_time = time.time()
             else:
                 partial_json = json.loads(recognizer.PartialResult())
@@ -74,10 +76,7 @@ def run_speech_recognition(recognizer, stream):
 
     except KeyboardInterrupt:
         print("\n🛑 Arrêt manuel.")
-
-
-def cleanup_micro(p, stream):
-    """Arrête et ferme proprement le micro."""
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
+    finally:
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
