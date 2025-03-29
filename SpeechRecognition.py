@@ -1,7 +1,3 @@
-# sudo apt-get install pip
-# sudo apt-get install -y python3-pyaudio
-# sudo pip3 install vosk
-
 import os
 import sys
 import json
@@ -12,7 +8,7 @@ from vosk import Model, KaldiRecognizer
 
 # Path to the Vosk model
 #model_path = "models/vosk-model-small-pl-0.22/"
-model_path = "models/vosk-model-small-en-us-0.15/"
+model_path = "models/vosk-model-small-fr-pguyot-0.3/"
 if not os.path.exists(model_path):
     print(f"Model '{model_path}' was not found. Please check the path.")
     exit(1)
